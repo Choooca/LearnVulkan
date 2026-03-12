@@ -1,0 +1,1 @@
+configure_file(build_macro.h.in build_macro.h)

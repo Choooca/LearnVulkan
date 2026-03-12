@@ -1,15 +1,18 @@
 #include <iostream>
+#include <memory>
+#include <spdlog/spdlog.h>
 #include "core/application.h"
 
 int main(int argc, char *argv[]) {
 
-	Application app{};
 
 	try {
-		app.Loop();
+		std::unique_ptr<Application> app = std::make_unique<Application>();
+
+		app->Loop();
 	}
 	catch (const std::exception& e) {
-		std::cerr << e.what() << std::endl;
+		spdlog::error("{}", e.what());
 		return EXIT_FAILURE;
 	}
 

@@ -17,11 +17,10 @@ add_subdirectory(src)
 target_include_directories(Dragibus 
 	PRIVATE
 		${CMAKE_SOURCE_DIR}/src
+		${CMAKE_CURRENT_BINARY_DIR}
 )
 
 target_link_libraries(Dragibus
 	PRIVATE 
-		vulkan
+		deps
 )
-
-
