@@ -1,9 +1,18 @@
 #pragma once
 
 #include <vector>
+#include <optional>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+struct QueueFamilyIndices {
+	std::optional<uint32_t> graphics_family;
+
+	bool IsComplete() {
+		return graphics_family.has_value();
+	}
+};
 
 class Application {
 public:
@@ -17,13 +26,20 @@ private:
 	void InitWindow();
 	void CreateInstance();
 	
+	void PickPhysicalDevice();
+	bool IsDeviceSuitable(VkPhysicalDevice device);
+
+	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
+
+	void CreateLogicalDevice();
+
 	bool CheckExtension(const char** required, uint32_t required_count);
 
 	std::vector<const char*> GetRequiredExtensions();
 	bool CheckValidationLayerSupport();
 
 	void SetupDebugMessenger();
-
+		
 	static VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
 	static void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
 
@@ -35,8 +51,11 @@ private:
 	const uint32_t HEIGHT = 600;
 
 	VkInstance m_instance;
+	VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
+	VkDevice m_device;
+	VkQueue m_graphics_queue;
 
-	VkDebugUtilsMessengerEXT debug_messenger;
+	VkDebugUtilsMessengerEXT m_debug_messenger;
 
 	const std::vector<const char*> m_validation_layers = {
 		"VK_LAYER_KHRONOS_validation"
