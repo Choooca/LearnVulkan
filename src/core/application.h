@@ -8,9 +8,10 @@
 
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphics_family;
+	std::optional<uint32_t> present_family;
 
 	bool IsComplete() {
-		return graphics_family.has_value();
+		return graphics_family.has_value() && present_family.has_value();
 	}
 };
 
@@ -45,6 +46,8 @@ private:
 
 	void PopulateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& create_info);
 
+	void CreateSurface();
+
 	GLFWwindow* m_window;
 
 	const uint32_t WIDTH = 800;
@@ -54,8 +57,11 @@ private:
 	VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
 	VkDevice m_device;
 	VkQueue m_graphics_queue;
+	VkQueue m_present_queue;
 
 	VkDebugUtilsMessengerEXT m_debug_messenger;
+
+	VkSurfaceKHR m_surface;
 
 	const std::vector<const char*> m_validation_layers = {
 		"VK_LAYER_KHRONOS_validation"
