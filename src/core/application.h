@@ -15,6 +15,12 @@ struct QueueFamilyIndices {
 	}
 };
 
+struct SwapChainSupportDetails {
+	VkSurfaceCapabilitiesKHR capabilities;
+	std::vector<VkSurfaceFormatKHR> formats;
+	std::vector<VkPresentModeKHR> present_modes;
+};
+
 class Application {
 public:
 	Application();
@@ -29,6 +35,15 @@ private:
 	
 	void PickPhysicalDevice();
 	bool IsDeviceSuitable(VkPhysicalDevice device);
+	bool CheckDeviceExtensionSupport(VkPhysicalDevice device);
+
+	SwapChainSupportDetails QuerySwapChainSupport(VkPhysicalDevice device);
+
+	VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &available_format);
+	VkPresentModeKHR ChooseSwapPresentMode(const std::vector<VkPresentModeKHR> &available_present_modes);
+	VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
+	
+	void CreateSwapChain();
 
 	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
 
@@ -59,12 +74,21 @@ private:
 	VkQueue m_graphics_queue;
 	VkQueue m_present_queue;
 
+	VkSwapchainKHR m_swap_chain;
+	std::vector<VkImage> m_swap_chain_images;
+	VkFormat m_swap_chain_image_format;
+	VkExtent2D m_swap_chain_extent;
+
 	VkDebugUtilsMessengerEXT m_debug_messenger;
 
 	VkSurfaceKHR m_surface;
 
 	const std::vector<const char*> m_validation_layers = {
 		"VK_LAYER_KHRONOS_validation"
+	};
+
+	const std::vector<const char*> m_device_extensions = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
 
 	#ifdef NDEBUG
