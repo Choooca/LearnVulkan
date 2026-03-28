@@ -63,6 +63,8 @@ private:
 
 	void CreateSurface();
 
+	void CreateImageView();
+
 	GLFWwindow* m_window;
 
 	const uint32_t WIDTH = 800;
@@ -78,6 +80,8 @@ private:
 	std::vector<VkImage> m_swap_chain_images;
 	VkFormat m_swap_chain_image_format;
 	VkExtent2D m_swap_chain_extent;
+
+	std::vector<VkImageView> m_swap_chain_image_views;
 
 	VkDebugUtilsMessengerEXT m_debug_messenger;
 
