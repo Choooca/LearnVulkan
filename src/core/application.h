@@ -82,6 +82,9 @@ private:
 	VkSwapchainKHR m_swap_chain;
 	std::vector<VkImage> m_swap_chain_images;
 	VkFormat m_swap_chain_image_format;
+
+	VkPipelineLayout m_pipeline_layout;
+
 	VkExtent2D m_swap_chain_extent;
 
 	std::vector<VkImageView> m_swap_chain_image_views;
@@ -96,6 +99,11 @@ private:
 
 	const std::vector<const char*> m_device_extensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+	};
+
+	const std::vector<VkDynamicState> m_dynamic_states = {
+		VK_DYNAMIC_STATE_VIEWPORT,
+		VK_DYNAMIC_STATE_SCISSOR
 	};
 
 	#ifdef NDEBUG
