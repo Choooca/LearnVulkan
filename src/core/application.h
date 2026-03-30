@@ -49,6 +49,9 @@ private:
 
 	void CreateLogicalDevice();
 
+	void CreateGraphicsPipeline();
+	VkShaderModule CreateShaderModule(const std::vector<char>& code);
+
 	bool CheckExtension(const char** required, uint32_t required_count);
 
 	std::vector<const char*> GetRequiredExtensions();

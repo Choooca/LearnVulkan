@@ -3,6 +3,8 @@
 #include <iostream>
 #include <set>
 #include <spdlog/spdlog.h>
+#include <utils/build_macro.h>
+#include <utils/files.h>
 
 Application::Application()
 {
@@ -16,6 +18,7 @@ Application::Application()
 	CreateLogicalDevice();
 	CreateSwapChain();
 	CreateImageView();
+	CreateGraphicsPipeline();
 }
 
 Application::~Application()
@@ -458,6 +461,47 @@ void Application::CreateLogicalDevice()
 
 	vkGetDeviceQueue(m_device, indices.graphics_family.value(), 0, &m_graphics_queue);
 	vkGetDeviceQueue(m_device, indices.present_family.value(), 0, &m_present_queue);
+}
+
+void Application::CreateGraphicsPipeline()
+{
+	auto vert_shader_code = ReadFile(std::string(SHADERS_DIR) + "simple_shader_vert.spv");
+	auto frag_shader_code = ReadFile(std::string(SHADERS_DIR) + "simple_shader_frag.spv");
+
+	VkShaderModule vert_shader_module = CreateShaderModule(vert_shader_code);
+	VkShaderModule frag_shader_module = CreateShaderModule(frag_shader_code);
+
+	VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
+	vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vert_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vert_shader_stage_info.module = vert_shader_module;
+	vert_shader_stage_info.pName = "main";
+
+	VkPipelineShaderStageCreateInfo frag_shader_stage_info{};
+	frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	frag_shader_stage_info.module = vert_shader_module;
+	frag_shader_stage_info.pName = "main";
+
+	VkPipelineShaderStageCreateInfo shader_stages[] = { vert_shader_stage_info, frag_shader_stage_info };
+
+	vkDestroyShaderModule(m_device, vert_shader_module, nullptr);
+	vkDestroyShaderModule(m_device, frag_shader_module, nullptr);
+}
+
+VkShaderModule Application::CreateShaderModule(const std::vector<char>& code)
+{
+	VkShaderModuleCreateInfo create_info{};
+	create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	create_info.codeSize = code.size();
+	create_info.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+	VkShaderModule shader_module;
+	if (vkCreateShaderModule(m_device, &create_info, nullptr, &shader_module)) {
+		throw std::runtime_error("failed to create shader module");
+	}
+
+	return shader_module;
 }
 
 bool Application::CheckExtension(const char** required, uint32_t required_count)

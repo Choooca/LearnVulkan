@@ -2,4 +2,4 @@
 #include <string>
 
 static constexpr const char *PROJECT_SOURCE_DIR = "${CMAKE_SOURCE_DIR}/";
-static constexpr const char *SHADERS_DIR = "${CMAKE_SOURCE_DIR}/ressources/shaders/";
+static constexpr const char *SHADERS_DIR = "${CMAKE_SOURCE_DIR}/shaders/";
