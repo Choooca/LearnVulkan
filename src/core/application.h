@@ -52,6 +52,8 @@ private:
 	void CreateGraphicsPipeline();
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);
 
+	void CreateRenderPass();
+
 	bool CheckExtension(const char** required, uint32_t required_count);
 
 	std::vector<const char*> GetRequiredExtensions();
@@ -83,6 +85,7 @@ private:
 	std::vector<VkImage> m_swap_chain_images;
 	VkFormat m_swap_chain_image_format;
 
+	VkRenderPass m_render_pass;
 	VkPipelineLayout m_pipeline_layout;
 
 	VkExtent2D m_swap_chain_extent;
