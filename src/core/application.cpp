@@ -28,6 +28,7 @@ Application::~Application()
 		DestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger, nullptr);
 	}
 
+	vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
 	vkDestroyRenderPass(m_device, m_render_pass, nullptr);
 
@@ -484,13 +485,10 @@ void Application::CreateGraphicsPipeline()
 	VkPipelineShaderStageCreateInfo frag_shader_stage_info{};
 	frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	frag_shader_stage_info.module = vert_shader_module;
+	frag_shader_stage_info.module = frag_shader_module;
 	frag_shader_stage_info.pName = "main";
 
 	VkPipelineShaderStageCreateInfo shader_stages[] = { vert_shader_stage_info, frag_shader_stage_info };
-
-	vkDestroyShaderModule(m_device, vert_shader_module, nullptr);
-	vkDestroyShaderModule(m_device, frag_shader_module, nullptr);
 
 	VkPipelineDynamicStateCreateInfo dynamic_state_create_info{};
 	dynamic_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -528,7 +526,7 @@ void Application::CreateGraphicsPipeline()
 	viewport_state_create_info.scissorCount = 1;
 	viewport_state_create_info.pScissors = &scissor;
 
-	VkPipelineRasterizationStateCreateInfo rasterization_create_info;
+	VkPipelineRasterizationStateCreateInfo rasterization_create_info{};
 	rasterization_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	rasterization_create_info.depthClampEnable = VK_FALSE;
 	rasterization_create_info.rasterizerDiscardEnable = VK_FALSE;
@@ -541,7 +539,7 @@ void Application::CreateGraphicsPipeline()
 	rasterization_create_info.depthBiasClamp = 0.0f;
 	rasterization_create_info.depthBiasSlopeFactor = 0.0f;
 
-	VkPipelineMultisampleStateCreateInfo multisampling_create_info;
+	VkPipelineMultisampleStateCreateInfo multisampling_create_info{};
 	multisampling_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	multisampling_create_info.sampleShadingEnable = VK_FALSE;
 	multisampling_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
@@ -581,6 +579,32 @@ void Application::CreateGraphicsPipeline()
 	if (vkCreatePipelineLayout(m_device, &pipeline_layout_create_info, nullptr, &m_pipeline_layout) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create pipeline layout");
 	}
+
+	VkGraphicsPipelineCreateInfo pipeline_create_info{};
+	pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipeline_create_info.stageCount = 2;
+	pipeline_create_info.pStages = shader_stages;
+	pipeline_create_info.pVertexInputState = &vertex_input_info;
+	pipeline_create_info.pInputAssemblyState = &input_assembly_create_info;
+	pipeline_create_info.pViewportState = &viewport_state_create_info;
+	pipeline_create_info.pRasterizationState = &rasterization_create_info;
+	pipeline_create_info.pMultisampleState = &multisampling_create_info;
+	pipeline_create_info.pDepthStencilState = nullptr;
+	pipeline_create_info.pColorBlendState = &color_blending_create_info;
+	pipeline_create_info.pDynamicState = &dynamic_state_create_info;
+	pipeline_create_info.layout = m_pipeline_layout;
+	pipeline_create_info.renderPass = m_render_pass;
+	pipeline_create_info.subpass = 0;
+	pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+	pipeline_create_info.basePipelineIndex = -1;
+
+	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipeline_create_info, nullptr, &m_graphics_pipeline) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create graphics pipeline");
+	}
+
+	vkDestroyShaderModule(m_device, vert_shader_module, nullptr);
+	vkDestroyShaderModule(m_device, frag_shader_module, nullptr);
+
 }
 
 VkShaderModule Application::CreateShaderModule(const std::vector<char>& code)

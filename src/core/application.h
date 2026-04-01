@@ -87,6 +87,7 @@ private:
 
 	VkRenderPass m_render_pass;
 	VkPipelineLayout m_pipeline_layout;
+	VkPipeline m_graphics_pipeline;
 
 	VkExtent2D m_swap_chain_extent;
 
