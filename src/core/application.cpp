@@ -20,12 +20,17 @@ Application::Application()
 	CreateImageView();
 	CreateRenderPass();
 	CreateGraphicsPipeline();
+	CreateFramebuffers();
 }
 
 Application::~Application()
 {
 	if (m_enable_validation_layers) {
 		DestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger, nullptr);
+	}
+
+	for(auto framebuffer : m_swap_chain_framebuffers) {
+		vkDestroyFramebuffer(m_device, framebuffer, nullptr);
 	}
 
 	vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
@@ -656,6 +661,30 @@ void Application::CreateRenderPass()
 
 	if (vkCreateRenderPass(m_device, &render_pass_create_info, nullptr, &m_render_pass) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create render pass");
+	}
+}
+
+void Application::CreateFramebuffers()
+{
+	m_swap_chain_framebuffers.resize(m_swap_chain_image_views.size());
+
+	for (int i = 0; i < m_swap_chain_image_views.size(); ++i) {
+		VkImageView attachments[] = {
+			m_swap_chain_image_views[i]
+		};
+
+		VkFramebufferCreateInfo framebuffer_create_info{};
+		framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebuffer_create_info.renderPass = m_render_pass;
+		framebuffer_create_info.attachmentCount = 1;
+		framebuffer_create_info.pAttachments = attachments;
+		framebuffer_create_info.width = m_swap_chain_extent.width;
+		framebuffer_create_info.height = m_swap_chain_extent.height;
+		framebuffer_create_info.layers = 1;
+
+		if (vkCreateFramebuffer(m_device, &framebuffer_create_info, nullptr, &m_swap_chain_framebuffers[i]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create framebuffer");
+		}
 	}
 }
 
