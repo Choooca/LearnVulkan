@@ -72,6 +72,11 @@ private:
 
 	void CreateImageView();
 
+	void CreateCommandPool();
+	void CreateCommandBuffers();
+
+	void RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index);
+
 	GLFWwindow* m_window;
 
 	const uint32_t WIDTH = 800;
@@ -82,6 +87,9 @@ private:
 	VkDevice m_device;
 	VkQueue m_graphics_queue;
 	VkQueue m_present_queue;
+
+	VkCommandPool m_command_pool;
+	VkCommandBuffer m_command_buffer;
 
 	VkSwapchainKHR m_swap_chain;
 	std::vector<VkImage> m_swap_chain_images;

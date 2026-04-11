@@ -21,6 +21,8 @@ Application::Application()
 	CreateRenderPass();
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
+	CreateCommandPool();
+	CreateCommandBuffers();
 }
 
 Application::~Application()
@@ -28,6 +30,8 @@ Application::~Application()
 	if (m_enable_validation_layers) {
 		DestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger, nullptr);
 	}
+
+	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
 
 	for(auto framebuffer : m_swap_chain_framebuffers) {
 		vkDestroyFramebuffer(m_device, framebuffer, nullptr);
@@ -150,6 +154,75 @@ void Application::CreateImageView()
 	}
 }
 
+void Application::CreateCommandPool()
+{
+	QueueFamilyIndices queue_family_indices = FindQueueFamilies(m_physical_device);
+	
+	VkCommandPoolCreateInfo pool_info{};
+	pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	pool_info.queueFamilyIndex = queue_family_indices.graphics_family.value();
+
+	if(vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool) != VK_SUCCESS)
+		throw std::runtime_error("failed to create command pool");
+
+}
+
+void Application::CreateCommandBuffers()
+{
+	VkCommandBufferAllocateInfo alloc_info{};
+	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	alloc_info.commandPool = m_command_pool;
+	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	alloc_info.commandBufferCount = 1;
+
+	if(vkAllocateCommandBuffers(m_device, &alloc_info, &m_command_buffer) != VK_SUCCESS)
+		throw std::runtime_error("failed to allocate command buffers");	
+}
+
+void Application::RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index)
+{
+	VkCommandBufferBeginInfo begin_info{};
+	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	begin_info.flags = 0;
+	begin_info.pInheritanceInfo = nullptr;
+
+	VkRenderPassBeginInfo render_pass_info{};
+	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	render_pass_info.renderPass = m_render_pass;
+	render_pass_info.framebuffer = m_swap_chain_framebuffers[image_index];
+	render_pass_info.renderArea.offset = { 0, 0 };
+	render_pass_info.renderArea.extent = m_swap_chain_extent;
+
+	VkClearValue clear_color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	render_pass_info.clearValueCount = 1;
+	render_pass_info.pClearValues = &clear_color;
+
+	vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline);
+
+	VkViewport viewport{};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(m_swap_chain_extent.width);
+	viewport.height = static_cast<float>(m_swap_chain_extent.height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+	VkRect2D scissor{};
+	scissor.offset = { 0, 0 };
+	scissor.extent = m_swap_chain_extent;
+	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+	vkCmdDraw(command_buffer, 3, 1, 0, 0);
+	vkCmdEndRenderPass(command_buffer);
+
+	if(vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
+		throw std::runtime_error("failed to end command buffer");
+	}
+}
+
 #pragma endregion
 
 #pragma region Initialization
@@ -252,13 +325,13 @@ bool Application::IsDeviceSuitable(VkPhysicalDevice device)
 	return indices.IsComplete() && extension_supported && swap_chain_adequate;
 }
 
-bool Application::CheckDeviceExtensionSupport(VkPhysicalDevice device)
+bool Application::CheckDeviceExtensionSupport(VkPhysicalDevice physical_device)
 {
 	uint32_t extension_count;
-	vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, nullptr);
+	vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extension_count, nullptr);
 
 	std::vector<VkExtensionProperties> available_extensions(extension_count);
-	vkEnumerateDeviceExtensionProperties(device, nullptr, &extension_count, available_extensions.data());
+	vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extension_count, available_extensions.data());
 
 	std::set<std::string> required_extensions(m_device_extensions.begin(), m_device_extensions.end());
 
