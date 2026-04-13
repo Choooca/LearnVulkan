@@ -30,6 +30,8 @@ public:
 
 private:
 
+	void DrawFrame();
+
 	void InitWindow();
 	void CreateInstance();
 	
@@ -77,6 +79,8 @@ private:
 
 	void RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index);
 
+	void CreateSyncObjects();
+
 	GLFWwindow* m_window;
 
 	const uint32_t WIDTH = 800;
@@ -108,6 +112,10 @@ private:
 	VkDebugUtilsMessengerEXT m_debug_messenger;
 
 	VkSurfaceKHR m_surface;
+
+	VkSemaphore m_image_available_semaphore;
+	VkSemaphore m_render_finish_semaphore;
+	VkFence m_in_flight_fence;
 
 	const std::vector<const char*> m_validation_layers = {
 		"VK_LAYER_KHRONOS_validation"
