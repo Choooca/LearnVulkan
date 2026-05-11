@@ -28,14 +28,14 @@ Application::Application()
 
 Application::~Application()
 {
-	if (m_enable_validation_layers) {
-		DestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger, nullptr);
+	for (size_t i = 0; i < m_swap_chain_images.size(); i++) {
+		vkDestroySemaphore(m_device, m_render_finish_semaphores[i], nullptr);
 	}
 
-	vkDestroySemaphore(m_device, m_render_finish_semaphore, nullptr);
-	vkDestroySemaphore(m_device, m_image_available_semaphore, nullptr);
-	vkDestroyFence(m_device, m_in_flight_fence, nullptr);
-
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+		vkDestroySemaphore(m_device, m_image_available_semaphores[i], nullptr);
+		vkDestroyFence(m_device, m_in_flight_fences[i], nullptr);
+	}
 	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
 
 	for(auto framebuffer : m_swap_chain_framebuffers) {
@@ -55,6 +55,11 @@ Application::~Application()
 	vkDestroyDevice(m_device, nullptr);
 
 	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+
+	if (m_enable_validation_layers) {
+		DestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger, nullptr);
+	}
+
 	vkDestroyInstance(m_instance, nullptr);
 
 	glfwDestroyWindow(m_window);
@@ -68,6 +73,8 @@ void Application::Loop()
 		glfwPollEvents();
 		DrawFrame();
 	}
+
+	vkDeviceWaitIdle(m_device);
 }
 
 #pragma region Debug
@@ -176,13 +183,15 @@ void Application::CreateCommandPool()
 
 void Application::CreateCommandBuffers()
 {
+	m_command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
+
 	VkCommandBufferAllocateInfo alloc_info{};
 	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	alloc_info.commandPool = m_command_pool;
 	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	alloc_info.commandBufferCount = 1;
+	alloc_info.commandBufferCount = (uint32_t)m_command_buffers.size();
 
-	if(vkAllocateCommandBuffers(m_device, &alloc_info, &m_command_buffer) != VK_SUCCESS)
+	if(vkAllocateCommandBuffers(m_device, &alloc_info, m_command_buffers.data()) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate command buffers");	
 }
 
@@ -235,6 +244,10 @@ void Application::RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t i
 
 void Application::CreateSyncObjects()
 {
+	m_image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	m_render_finish_semaphores.resize(m_swap_chain_images.size());
+	m_in_flight_fences.resize(MAX_FRAMES_IN_FLIGHT);
+
 	VkSemaphoreCreateInfo semaphore_info{};
 	semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -242,10 +255,18 @@ void Application::CreateSyncObjects()
 	fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	if(vkCreateSemaphore(m_device, &semaphore_info, nullptr, &m_render_finish_semaphore) != VK_SUCCESS ||
-	   vkCreateSemaphore(m_device, &semaphore_info, nullptr, &m_image_available_semaphore) != VK_SUCCESS ||
-	   vkCreateFence(m_device, &fence_info, nullptr, &m_in_flight_fence) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create synchronization objects for a frame");
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		if (vkCreateSemaphore(m_device, &semaphore_info, nullptr, &m_image_available_semaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(m_device, &fence_info, nullptr, &m_in_flight_fences[i]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create synchronization objects for a frame");
+		}
+	}
+
+	for (size_t i = 0; i < m_swap_chain_images.size(); i++) {
+		if (vkCreateSemaphore(m_device, &semaphore_info, nullptr, &m_render_finish_semaphores[i]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create synchronization objects for a frame");
+		}
 	}
 }
 
@@ -255,32 +276,32 @@ void Application::CreateSyncObjects()
 
 void Application::DrawFrame()
 {
-	vkWaitForFences(m_device, 1, &m_in_flight_fence, VK_TRUE, UINT64_MAX);
-	vkResetFences(m_device, 1, &m_in_flight_fence);	
+	vkWaitForFences(m_device, 1, &m_in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
+	vkResetFences(m_device, 1, &m_in_flight_fences[current_frame]);
 
 	uint32_t image_index;
-	vkAcquireNextImageKHR(m_device, m_swap_chain, UINT64_MAX, m_image_available_semaphore, VK_NULL_HANDLE, &image_index);
+	vkAcquireNextImageKHR(m_device, m_swap_chain, UINT64_MAX, m_image_available_semaphores[current_frame], VK_NULL_HANDLE, &image_index);
 	
-	vkResetCommandBuffer(m_command_buffer, 0);
-	RecordCommandBuffer(m_command_buffer, image_index);
+	vkResetCommandBuffer(m_command_buffers[current_frame], 0);
+	RecordCommandBuffer(m_command_buffers[current_frame], image_index);
 
 	VkSubmitInfo submit_info{};
 	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-	VkSemaphore wait_semaphores[] = { m_image_available_semaphore };
+	VkSemaphore wait_semaphores[] = { m_image_available_semaphores[current_frame] };
 	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	submit_info.waitSemaphoreCount = 1;
 	submit_info.pWaitSemaphores = wait_semaphores;
 	submit_info.pWaitDstStageMask = wait_stages;
 
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &m_command_buffer;
+	submit_info.pCommandBuffers = &m_command_buffers[current_frame];
 
-	VkSemaphore signal_semaphore = {m_render_finish_semaphore};
+	VkSemaphore signal_semaphore = m_render_finish_semaphores[image_index];
 	submit_info.signalSemaphoreCount = 1;
 	submit_info.pSignalSemaphores = &signal_semaphore;
 
-	if(vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_in_flight_fence) != VK_SUCCESS) {
+	if(vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_in_flight_fences[current_frame]) != VK_SUCCESS) {
 		throw std::runtime_error("failed to submit draw command buffer");
 	}
 
@@ -298,6 +319,8 @@ void Application::DrawFrame()
 	present_info.pResults = nullptr;
 
 	vkQueuePresentKHR(m_present_queue, &present_info);
+
+	current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Application::InitWindow()
@@ -766,7 +789,7 @@ VkShaderModule Application::CreateShaderModule(const std::vector<char>& code)
 	create_info.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
 	VkShaderModule shader_module;
-	if (vkCreateShaderModule(m_device, &create_info, nullptr, &shader_module)) {
+	if (vkCreateShaderModule(m_device, &create_info, nullptr, &shader_module) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create shader module");
 	}
 
@@ -830,7 +853,7 @@ void Application::CreateFramebuffers()
 	for (int i = 0; i < m_swap_chain_image_views.size(); ++i) {
 		VkImageView attachments[] = {
 			m_swap_chain_image_views[i]
-		};
+		};	
 
 		VkFramebufferCreateInfo framebuffer_create_info{};
 		framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;

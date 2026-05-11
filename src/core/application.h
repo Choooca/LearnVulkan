@@ -83,8 +83,12 @@ private:
 
 	GLFWwindow* m_window;
 
+	const int MAX_FRAMES_IN_FLIGHT = 2;
+
 	const uint32_t WIDTH = 800;
 	const uint32_t HEIGHT = 600;
+
+	uint32_t current_frame = 0;
 
 	VkInstance m_instance;
 	VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
@@ -93,7 +97,7 @@ private:
 	VkQueue m_present_queue;
 
 	VkCommandPool m_command_pool;
-	VkCommandBuffer m_command_buffer;
+	std::vector<VkCommandBuffer> m_command_buffers;
 
 	VkSwapchainKHR m_swap_chain;
 	std::vector<VkImage> m_swap_chain_images;
@@ -113,9 +117,9 @@ private:
 
 	VkSurfaceKHR m_surface;
 
-	VkSemaphore m_image_available_semaphore;
-	VkSemaphore m_render_finish_semaphore;
-	VkFence m_in_flight_fence;
+	std::vector<VkSemaphore> m_image_available_semaphores;
+	std::vector<VkSemaphore> m_render_finish_semaphores;
+	std::vector<VkFence> m_in_flight_fences;
 
 	const std::vector<const char*> m_validation_layers = {
 		"VK_LAYER_KHRONOS_validation"
