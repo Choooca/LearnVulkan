@@ -28,6 +28,8 @@ public:
 
 	void Loop();
 
+	bool m_framebuffer_resized = false;
+
 private:
 
 	void DrawFrame();
@@ -46,6 +48,9 @@ private:
 	VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities);
 	
 	void CreateSwapChain();
+	void RecreateSwapChain();
+
+	void CleanupSwapChain();
 
 	QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device);
 

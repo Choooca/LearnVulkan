@@ -5,10 +5,10 @@
 
 int main(int argc, char *argv[]) {
 
+	std::unique_ptr<Application> app;
 
 	try {
-		std::unique_ptr<Application> app = std::make_unique<Application>();
-
+		app = std::make_unique<Application>();
 		app->Loop();
 	}
 	catch (const std::exception& e) {

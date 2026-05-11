@@ -28,9 +28,11 @@ Application::Application()
 
 Application::~Application()
 {
-	for (size_t i = 0; i < m_swap_chain_images.size(); i++) {
+	for (size_t i = 0; i < m_render_finish_semaphores.size(); i++) {
 		vkDestroySemaphore(m_device, m_render_finish_semaphores[i], nullptr);
 	}
+
+	CleanupSwapChain();
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		vkDestroySemaphore(m_device, m_image_available_semaphores[i], nullptr);
@@ -38,19 +40,9 @@ Application::~Application()
 	}
 	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
 
-	for(auto framebuffer : m_swap_chain_framebuffers) {
-		vkDestroyFramebuffer(m_device, framebuffer, nullptr);
-	}
-
 	vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
 	vkDestroyRenderPass(m_device, m_render_pass, nullptr);
-
-	for (auto& image_view : m_swap_chain_image_views) {
-		vkDestroyImageView(m_device, image_view, nullptr);
-	}
-
-	vkDestroySwapchainKHR(m_device, m_swap_chain, nullptr);
 
 	vkDestroyDevice(m_device, nullptr);
 
@@ -274,14 +266,28 @@ void Application::CreateSyncObjects()
 
 #pragma region Initialization
 
+void FrameBufferResizedCallback(GLFWwindow* window, int width, int height) {
+	auto app = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+	app->m_framebuffer_resized = true;
+}
+
 void Application::DrawFrame()
 {
 	vkWaitForFences(m_device, 1, &m_in_flight_fences[current_frame], VK_TRUE, UINT64_MAX);
-	vkResetFences(m_device, 1, &m_in_flight_fences[current_frame]);
 
 	uint32_t image_index;
-	vkAcquireNextImageKHR(m_device, m_swap_chain, UINT64_MAX, m_image_available_semaphores[current_frame], VK_NULL_HANDLE, &image_index);
+	VkResult result = vkAcquireNextImageKHR(m_device, m_swap_chain, UINT64_MAX, m_image_available_semaphores[current_frame], VK_NULL_HANDLE, &image_index);
 	
+	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+		RecreateSwapChain();
+		return;
+	}
+	else if(result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR){
+		throw std::runtime_error("failed to acquire swap chain image");
+	}
+
+	vkResetFences(m_device, 1, &m_in_flight_fences[current_frame]);
+
 	vkResetCommandBuffer(m_command_buffers[current_frame], 0);
 	RecordCommandBuffer(m_command_buffers[current_frame], image_index);
 
@@ -318,7 +324,14 @@ void Application::DrawFrame()
 
 	present_info.pResults = nullptr;
 
-	vkQueuePresentKHR(m_present_queue, &present_info);
+	result = vkQueuePresentKHR(m_present_queue, &present_info);
+
+	if(result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebuffer_resized){
+		m_framebuffer_resized = false;
+		RecreateSwapChain();
+	} else if (result != VK_SUCCESS) {
+		throw std::runtime_error("failed to present swap chain image");
+	}
 
 	current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
@@ -328,9 +341,12 @@ void Application::InitWindow()
 	glfwInit();
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	m_window = glfwCreateWindow(WIDTH, HEIGHT,"Dragibus", nullptr, nullptr);
+
+	glfwSetWindowUserPointer(m_window, this);
+	glfwSetFramebufferSizeCallback(m_window, FrameBufferResizedCallback);
 }
 
 void Application::CreateInstance()
@@ -560,6 +576,37 @@ void Application::CreateSwapChain()
 
 	m_swap_chain_image_format = surface_format.format;
 	m_swap_chain_extent = extent;
+}
+
+void Application::RecreateSwapChain()
+{
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(m_window, &width, &height);
+	while (width == 0 || height == 0) {
+		glfwGetFramebufferSize(m_window, &width, &height);
+		glfwWaitEvents();
+	}
+
+	vkDeviceWaitIdle(m_device);
+
+	CleanupSwapChain();
+
+	CreateSwapChain();
+	CreateImageView();
+	CreateFramebuffers();
+}
+
+void Application::CleanupSwapChain()
+{
+	for (auto framebuffer : m_swap_chain_framebuffers) {
+		vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+	}
+
+	for (auto& image_view : m_swap_chain_image_views) {
+		vkDestroyImageView(m_device, image_view, nullptr);
+	}
+
+	vkDestroySwapchainKHR(m_device, m_swap_chain, nullptr);
 }
 
 QueueFamilyIndices Application::FindQueueFamilies(VkPhysicalDevice device)
