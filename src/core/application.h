@@ -121,6 +121,8 @@ private:
 	void CreateCommandBuffers();
 
 	void CreateVertexBuffer();
+	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory);
+	void CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
 
 	uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
 
@@ -147,6 +149,7 @@ private:
 	VkQueue m_present_queue;
 
 	VkCommandPool m_command_pool;
+	VkCommandPool m_command_pool_transfer;
 	std::vector<VkCommandBuffer> m_command_buffers;
 
 	VkSwapchainKHR m_swap_chain;

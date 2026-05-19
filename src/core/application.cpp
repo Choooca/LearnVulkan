@@ -43,6 +43,7 @@ Application::~Application()
 		vkDestroyFence(m_device, m_in_flight_fences[i], nullptr);
 	}
 	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
+	vkDestroyCommandPool(m_device, m_command_pool_transfer, nullptr);
 
 	vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
@@ -175,6 +176,10 @@ void Application::CreateCommandPool()
 	if(vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool) != VK_SUCCESS)
 		throw std::runtime_error("failed to create command pool");
 
+	pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+	
+	if (vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool_transfer) != VK_SUCCESS)
+		throw std::runtime_error("failed to create command pool");
 }
 
 void Application::CreateCommandBuffers()
@@ -193,34 +198,86 @@ void Application::CreateCommandBuffers()
 
 void Application::CreateVertexBuffer()
 {
+	VkDeviceSize buffer_size = sizeof(vertices[0]) * vertices.size();
+
+	VkBuffer staging_buffer;
+	VkDeviceMemory staging_buffer_memory;
+	CreateBuffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+
+	void* data;
+	vkMapMemory(m_device, staging_buffer_memory, 0, buffer_size, 0, &data);
+	memcpy(data, vertices.data(), (size_t)buffer_size);
+	vkUnmapMemory(m_device, staging_buffer_memory);
+
+	CreateBuffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vertex_buffer, m_vertex_buffer_memory);
+
+	CopyBuffer(staging_buffer, m_vertex_buffer, buffer_size);
+
+	vkDestroyBuffer(m_device, staging_buffer, nullptr);
+	vkFreeMemory(m_device, staging_buffer_memory, nullptr);
+}
+
+void Application::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory)
+{
 	VkBufferCreateInfo buffer_info{};
 	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	buffer_info.size = sizeof(vertices[0]) * vertices.size();
-	buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	buffer_info.size = size;
+	buffer_info.usage = usage;
 	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if (vkCreateBuffer(m_device, &buffer_info, nullptr, &m_vertex_buffer) != VK_SUCCESS) {
+	if (vkCreateBuffer(m_device, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create vertex buffer");
 	}
 
 	VkMemoryRequirements mem_requirements;
-	vkGetBufferMemoryRequirements(m_device, m_vertex_buffer, &mem_requirements);
+	vkGetBufferMemoryRequirements(m_device, buffer, &mem_requirements);
 
 	VkMemoryAllocateInfo alloc_info{};
 	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	alloc_info.allocationSize = mem_requirements.size;
-	alloc_info.memoryTypeIndex = FindMemoryType(mem_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	alloc_info.memoryTypeIndex = FindMemoryType(mem_requirements.memoryTypeBits, properties);
 
-	if(vkAllocateMemory(m_device, &alloc_info, nullptr, &m_vertex_buffer_memory) != VK_SUCCESS){
+	if (vkAllocateMemory(m_device, &alloc_info, nullptr, &buffer_memory) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate vertex buffer memory");
 	}
 
-	vkBindBufferMemory(m_device, m_vertex_buffer, m_vertex_buffer_memory, 0);
+	vkBindBufferMemory(m_device, buffer, buffer_memory, 0);
+}
 
-	void* data;
-	vkMapMemory(m_device, m_vertex_buffer_memory, 0, buffer_info.size, 0, &data);
-	memcpy(data, vertices.data(), (size_t)buffer_info.size);
-	vkUnmapMemory(m_device, m_vertex_buffer_memory);
+void Application::CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
+{
+	VkCommandBufferAllocateInfo alloc_info{};
+	alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	alloc_info.commandPool = m_command_pool_transfer;
+	alloc_info.commandBufferCount = 1;
+
+	VkCommandBuffer transfer_command_buffer;
+	vkAllocateCommandBuffers(m_device, &alloc_info, &transfer_command_buffer);
+
+	VkCommandBufferBeginInfo begin_info{};
+	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(transfer_command_buffer, &begin_info);
+
+	VkBufferCopy copy_region{};
+	copy_region.srcOffset = 0;
+	copy_region.dstOffset = 0;
+	copy_region.size = size;
+	vkCmdCopyBuffer(transfer_command_buffer, src_buffer, dst_buffer, 1, &copy_region);
+	
+	vkEndCommandBuffer(transfer_command_buffer);
+
+	VkSubmitInfo submit_info{};
+	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = &transfer_command_buffer;
+
+	vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
+	vkQueueWaitIdle(m_graphics_queue);
+
+	vkFreeCommandBuffers(m_device, m_command_pool_transfer, 1, &transfer_command_buffer);
 }
 
 uint32_t Application::FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties)
@@ -281,7 +338,7 @@ void Application::RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t i
 	scissor.extent = m_swap_chain_extent;
 	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-	vkCmdDraw(command_buffer, 3, 1, 0, 0);
+	vkCmdDraw(command_buffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 	vkCmdEndRenderPass(command_buffer);
 
 	if(vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
@@ -779,7 +836,7 @@ void Application::CreateGraphicsPipeline()
 	vertex_input_info.vertexBindingDescriptionCount = 1;
 	vertex_input_info.pVertexBindingDescriptions = &binding_description;
 	vertex_input_info.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribute_descriptions.size());
-	vertex_input_info.pVertexAttributeDescriptions = Vertex::GetAttributeDescriptions().data();
+	vertex_input_info.pVertexAttributeDescriptions = attribute_descriptions.data();
 
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info{};
 	input_assembly_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
