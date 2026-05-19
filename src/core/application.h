@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <optional>
+#include <array>
+#include <glm/glm.hpp>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -21,6 +23,36 @@ struct SwapChainSupportDetails {
 	std::vector<VkPresentModeKHR> present_modes;
 };
 
+struct Vertex {
+	glm::vec2 pos;
+	glm::vec3 color;
+
+	static VkVertexInputBindingDescription GetBindingDescription() {
+		VkVertexInputBindingDescription binding_description{};
+		binding_description.binding = 0;
+		binding_description.stride = sizeof(Vertex);
+		binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return binding_description;
+	}
+
+	static std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions() {
+		std::array<VkVertexInputAttributeDescription, 2> attribute_descriptions{};
+
+		attribute_descriptions[0].binding = 0;
+		attribute_descriptions[0].location = 0;
+		attribute_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attribute_descriptions[0].offset = offsetof(Vertex, pos);
+
+		attribute_descriptions[1].binding = 0;
+		attribute_descriptions[1].location = 1;
+		attribute_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attribute_descriptions[1].offset = offsetof(Vertex, color);
+
+		return attribute_descriptions;
+	}
+};
+
 class Application {
 public:
 	Application();
@@ -31,6 +63,12 @@ public:
 	bool m_framebuffer_resized = false;
 
 private:
+
+	const std::vector<Vertex> vertices = {
+		{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+	};
 
 	void DrawFrame();
 
@@ -82,6 +120,10 @@ private:
 	void CreateCommandPool();
 	void CreateCommandBuffers();
 
+	void CreateVertexBuffer();
+
+	uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
+
 	void RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index);
 
 	void CreateSyncObjects();
@@ -94,6 +136,9 @@ private:
 	const uint32_t HEIGHT = 600;
 
 	uint32_t current_frame = 0;
+
+	VkBuffer m_vertex_buffer;
+	VkDeviceMemory m_vertex_buffer_memory;
 
 	VkInstance m_instance;
 	VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
