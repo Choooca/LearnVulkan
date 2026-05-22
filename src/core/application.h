@@ -54,6 +54,12 @@ struct Vertex {
 	}
 };
 
+struct UniformBufferObject {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 proj;
+};
+
 class Application {
 public:
 	Application();
@@ -100,6 +106,10 @@ private:
 
 	void CreateLogicalDevice();
 
+	void CreateDescriptorSetLayout();
+	void CreateDescriptorPool();
+	void CreateDescriptorSet();
+
 	void CreateGraphicsPipeline();
 	VkShaderModule CreateShaderModule(const std::vector<char>& code);
 
@@ -128,12 +138,14 @@ private:
 
 	void CreateVertexBuffer();
 	void CreateIndexBuffer();
+	void CreateUniformBuffers();
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory);
 	void CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
 
 	uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
 
 	void RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index);
+	void UpdateUniformBuffer(uint32_t current_image);
 
 	void CreateSyncObjects();
 
@@ -150,6 +162,10 @@ private:
 	VkDeviceMemory m_vertex_buffer_memory;
 	VkBuffer m_index_buffer;
 	VkDeviceMemory m_index_buffer_memory;
+
+	std::vector<VkBuffer> m_uniform_buffers;
+	std::vector<VkDeviceMemory> m_uniform_buffers_memory;
+	std::vector<void*> m_uniform_buffers_mapped;
 
 	VkInstance m_instance;
 	VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
@@ -169,6 +185,11 @@ private:
 	std::vector<VkFramebuffer> m_swap_chain_framebuffers;
 
 	VkRenderPass m_render_pass;
+	
+	VkDescriptorSetLayout m_descriptor_set_layout;
+	VkDescriptorPool m_descriptor_pool;
+	std::vector<VkDescriptorSet> m_descriptor_sets;
+
 	VkPipelineLayout m_pipeline_layout;
 	VkPipeline m_graphics_pipeline;
 
