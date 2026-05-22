@@ -11,6 +11,7 @@
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphics_family;
 	std::optional<uint32_t> present_family;
+	std::optional<uint32_t> transfer_family;
 
 	bool IsComplete() {
 		return graphics_family.has_value() && present_family.has_value();
@@ -65,9 +66,14 @@ public:
 private:
 
 	const std::vector<Vertex> vertices = {
-		{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-		{{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-		{{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+		{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+		{{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+	};
+
+	const std::vector<uint16_t> indices = {
+		0, 1, 2, 2, 3, 0
 	};
 
 	void DrawFrame();
@@ -121,6 +127,7 @@ private:
 	void CreateCommandBuffers();
 
 	void CreateVertexBuffer();
+	void CreateIndexBuffer();
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory);
 	void CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
 
@@ -141,12 +148,15 @@ private:
 
 	VkBuffer m_vertex_buffer;
 	VkDeviceMemory m_vertex_buffer_memory;
+	VkBuffer m_index_buffer;
+	VkDeviceMemory m_index_buffer_memory;
 
 	VkInstance m_instance;
 	VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
 	VkDevice m_device;
 	VkQueue m_graphics_queue;
 	VkQueue m_present_queue;
+	VkQueue m_transfer_queue;
 
 	VkCommandPool m_command_pool;
 	VkCommandPool m_command_pool_transfer;

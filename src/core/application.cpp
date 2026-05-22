@@ -24,6 +24,7 @@ Application::Application()
 	CreateCommandPool();
 	CreateCommandBuffers();
 	CreateVertexBuffer();
+	CreateIndexBuffer();
 	CreateSyncObjects();
 }
 
@@ -37,6 +38,9 @@ Application::~Application()
 
 	vkDestroyBuffer(m_device, m_vertex_buffer, nullptr);
 	vkFreeMemory(m_device, m_vertex_buffer_memory, nullptr);
+
+	vkDestroyBuffer(m_device, m_index_buffer, nullptr);
+	vkFreeMemory(m_device, m_index_buffer_memory, nullptr);
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 		vkDestroySemaphore(m_device, m_image_available_semaphores[i], nullptr);
@@ -176,6 +180,7 @@ void Application::CreateCommandPool()
 	if(vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool) != VK_SUCCESS)
 		throw std::runtime_error("failed to create command pool");
 
+	pool_info.queueFamilyIndex = queue_family_indices.transfer_family.value();
 	pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 	
 	if (vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool_transfer) != VK_SUCCESS)
@@ -217,13 +222,46 @@ void Application::CreateVertexBuffer()
 	vkFreeMemory(m_device, staging_buffer_memory, nullptr);
 }
 
+void Application::CreateIndexBuffer()
+{
+	VkDeviceSize buffer_size = sizeof(indices[0]) * indices.size();
+
+	VkBuffer  stating_buffer;
+	VkDeviceMemory staging_buffer_memory;
+	CreateBuffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stating_buffer, staging_buffer_memory);
+
+	void* data;
+	vkMapMemory(m_device, staging_buffer_memory, 0, buffer_size, 0, &data);
+	memcpy(data, indices.data(), (size_t)buffer_size);
+	vkUnmapMemory(m_device, staging_buffer_memory);
+
+	CreateBuffer(buffer_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_index_buffer, m_index_buffer_memory);
+
+	CopyBuffer(stating_buffer, m_index_buffer, buffer_size);
+
+	vkDestroyBuffer(m_device, stating_buffer, nullptr);
+	vkFreeMemory(m_device, staging_buffer_memory, nullptr);
+}
+
 void Application::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory)
 {
 	VkBufferCreateInfo buffer_info{};
 	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	buffer_info.size = size;
 	buffer_info.usage = usage;
-	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	QueueFamilyIndices family_indices = FindQueueFamilies(m_physical_device);
+
+	uint32_t shared_queue_family_indices[] = { family_indices.graphics_family.value(), family_indices.transfer_family.value() };
+
+	if (family_indices.graphics_family != family_indices.transfer_family) {
+		buffer_info.sharingMode = VK_SHARING_MODE_CONCURRENT;
+		buffer_info.queueFamilyIndexCount = 2;
+		buffer_info.pQueueFamilyIndices = shared_queue_family_indices;
+	}
+	else {
+		buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	}
 
 	if (vkCreateBuffer(m_device, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create vertex buffer");
@@ -274,8 +312,8 @@ void Application::CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceS
 	submit_info.commandBufferCount = 1;
 	submit_info.pCommandBuffers = &transfer_command_buffer;
 
-	vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
-	vkQueueWaitIdle(m_graphics_queue);
+	vkQueueSubmit(m_transfer_queue, 1, &submit_info, VK_NULL_HANDLE);
+	vkQueueWaitIdle(m_transfer_queue);
 
 	vkFreeCommandBuffers(m_device, m_command_pool_transfer, 1, &transfer_command_buffer);
 }
@@ -323,6 +361,7 @@ void Application::RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t i
 	VkBuffer vertex_buffers[] = { m_vertex_buffer };
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+	vkCmdBindIndexBuffer(command_buffer, m_index_buffer, 0, VK_INDEX_TYPE_UINT16);
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
@@ -338,7 +377,7 @@ void Application::RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t i
 	scissor.extent = m_swap_chain_extent;
 	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-	vkCmdDraw(command_buffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+	vkCmdDrawIndexed(command_buffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 	vkCmdEndRenderPass(command_buffer);
 
 	if(vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
@@ -666,8 +705,6 @@ void Application::CreateSwapChain()
 	}
 	else {
 		create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		create_info.queueFamilyIndexCount = 0;
-		create_info.pQueueFamilyIndices = nullptr;
 	}
 
 	create_info.preTransform = swap_chain_support.capabilities.currentTransform;
@@ -737,6 +774,10 @@ QueueFamilyIndices Application::FindQueueFamilies(VkPhysicalDevice device)
 			indices.graphics_family = i;
 		}
 
+		if (queue_family.queueFlags & VK_QUEUE_TRANSFER_BIT && !(queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+			indices.transfer_family = i;
+		}
+
 		VkBool32 present_support = false;
 		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &present_support);
 
@@ -744,10 +785,11 @@ QueueFamilyIndices Application::FindQueueFamilies(VkPhysicalDevice device)
 			indices.present_family = i;
 		}
 
-		if(indices.IsComplete())
-			break;
-
 		i++;
+	}
+
+	if (!indices.transfer_family.has_value()) {
+		indices.transfer_family = indices.graphics_family;
 	}
 
 	return indices;
@@ -760,7 +802,8 @@ void Application::CreateLogicalDevice()
 	std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
 	std::set<uint32_t> unique_queue_families = {
 		indices.graphics_family.value(),
-		indices.present_family.value()
+		indices.present_family.value(),
+		indices.transfer_family.value()
 		};
 
 	float queue_priority = 1.0f;
@@ -799,6 +842,7 @@ void Application::CreateLogicalDevice()
 
 	vkGetDeviceQueue(m_device, indices.graphics_family.value(), 0, &m_graphics_queue);
 	vkGetDeviceQueue(m_device, indices.present_family.value(), 0, &m_present_queue);
+	vkGetDeviceQueue(m_device, indices.transfer_family.value(), 0, &m_transfer_queue);
 }
 
 void Application::CreateGraphicsPipeline()
