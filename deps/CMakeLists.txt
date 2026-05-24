@@ -14,7 +14,6 @@ function(include_dependency lib_name git_url git_tag source_subdir)
     SOURCE_SUBDIR   ${source_subdir}
     )
     FetchContent_MakeAvailable(${lib_name})
-
 endfunction()
 
 set(GLAD_VERSION 2.0.5)
@@ -50,8 +49,22 @@ message(STATUS "Include spdlog")
 
 include_dependency(spdlog https://github.com/gabime/spdlog.git v1.17.0 "")
 
+message(STATUS "Include stb image")
+
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY  https://github.com/nothings/stb.git
+    GIT_TAG         master 
+    GIT_SHALLOW     TRUE
+    GIT_PROGRESS    TRUE
+)
+FetchContent_MakeAvailable(stb)
+add_library(stb INTERFACE)
+target_include_directories(stb INTERFACE ${stb_SOURCE_DIR})
+
 add_library(deps INTERFACE)
 target_include_directories(deps INTERFACE ${vulkanhpp_SOURCE_DIR})
+target_include_directories(deps INTERFACE ${stb_SOURCE_DIR})
 
 find_package(Vulkan REQUIRED)
-target_link_libraries(deps INTERFACE Vulkan::Headers Vulkan::Vulkan glfw glm::glm spdlog::spdlog)
+target_link_libraries(deps INTERFACE stb Vulkan::Headers Vulkan::Vulkan glfw glm::glm spdlog::spdlog)

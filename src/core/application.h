@@ -55,9 +55,9 @@ struct Vertex {
 };
 
 struct UniformBufferObject {
-	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 proj;
+	alignas(16) glm::mat4 model;
+	alignas(16) glm::mat4 view;
+	alignas(16) glm::mat4 proj;
 };
 
 class Application {
@@ -142,6 +142,16 @@ private:
 	void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory);
 	void CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
 
+	void CreateTextureImage();
+	void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags property, VkImage& image, VkDeviceMemory& image_memory);
+
+	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+
+	void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
+
+	VkCommandBuffer BeginSingleTimeCommand(VkCommandPool command_pool);
+	void EndSingleTimeCommand(VkCommandBuffer command_buffer, VkCommandPool command_pool, VkQueue queue);
+
 	uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
 
 	void RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index);
@@ -160,8 +170,12 @@ private:
 
 	VkBuffer m_vertex_buffer;
 	VkDeviceMemory m_vertex_buffer_memory;
+
 	VkBuffer m_index_buffer;
 	VkDeviceMemory m_index_buffer_memory;
+
+	VkImage m_texture_image;
+	VkDeviceMemory m_texture_image_memory;
 
 	std::vector<VkBuffer> m_uniform_buffers;
 	std::vector<VkDeviceMemory> m_uniform_buffers_memory;
