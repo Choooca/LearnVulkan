@@ -34,6 +34,7 @@ Application::Application()
 	CreateFramebuffers();
 	CreateCommandPool();
 	CreateCommandBuffers();
+	CreateTextureImage();
 	CreateVertexBuffer();
 	CreateIndexBuffer();
 	CreateUniformBuffers();
@@ -305,7 +306,7 @@ void Application::CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMe
 	}
 
 	if (vkCreateBuffer(m_device, &buffer_info, nullptr, &buffer) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create vertex buffer");
+		throw std::runtime_error("failed to create buffer");
 	}
 
 	VkMemoryRequirements mem_requirements;
@@ -340,7 +341,7 @@ void Application::CreateTextureImage()
 {
 	int texture_width, texture_height, texture_channels;
 
-	std::string str_path = std::string(TEXTURES_DIR) + "/texture.jpg";
+	std::string str_path = std::string(TEXTURES_DIR) + "texture.jpg";
 	const char* path = str_path.c_str();
 	stbi_uc* pixels = stbi_load(path, &texture_width, &texture_height, &texture_channels, STBI_rgb_alpha);
 	VkDeviceSize image_size = texture_width * texture_height * 4;
@@ -428,7 +429,7 @@ void Application::TransitionImageLayout(VkImage image, VkFormat format, VkImageL
 {
 	VkCommandBuffer command_buffer = BeginSingleTimeCommand(m_command_pool);
 
-	VkImageMemoryBarrier barrier;
+	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.oldLayout = old_layout;
 	barrier.newLayout = new_layout;
@@ -439,7 +440,7 @@ void Application::TransitionImageLayout(VkImage image, VkFormat format, VkImageL
 	barrier.subresourceRange.levelCount = 1;
 	barrier.subresourceRange.baseMipLevel = 0;
 	barrier.subresourceRange.layerCount = 1;
-	barrier.subresourceRange.baseArrayLayer = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
 	barrier.srcAccessMask = 0;
 	barrier.dstAccessMask = 0;
 
