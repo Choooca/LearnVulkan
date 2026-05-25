@@ -131,7 +131,9 @@ private:
 
 	void CreateSurface();
 
-	void CreateImageView();
+	VkImageView CreateImageView(VkImage image, VkFormat format);
+
+	void CreateSwapChainImageViews();
 
 	void CreateCommandPool();
 	void CreateCommandBuffers();
@@ -143,6 +145,9 @@ private:
 	void CopyBuffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size);
 
 	void CreateTextureImage();
+	void CreateTextureImageView();
+	void CreateTextureSampler();
+
 	void CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags property, VkImage& image, VkDeviceMemory& image_memory);
 
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
@@ -176,6 +181,8 @@ private:
 
 	VkImage m_texture_image;
 	VkDeviceMemory m_texture_image_memory;
+	VkImageView m_texture_image_view;
+	VkSampler m_texture_sampler;
 
 	std::vector<VkBuffer> m_uniform_buffers;
 	std::vector<VkDeviceMemory> m_uniform_buffers_memory;

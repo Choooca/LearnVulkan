@@ -27,7 +27,7 @@ Application::Application()
 	PickPhysicalDevice();
 	CreateLogicalDevice();
 	CreateSwapChain();
-	CreateImageView();
+	CreateSwapChainImageViews();
 	CreateRenderPass();
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline();
@@ -35,6 +35,8 @@ Application::Application()
 	CreateCommandPool();
 	CreateCommandBuffers();
 	CreateTextureImage();
+	CreateTextureImageView();
+	CreateTextureSampler();
 	CreateVertexBuffer();
 	CreateIndexBuffer();
 	CreateUniformBuffers();
@@ -50,6 +52,9 @@ Application::~Application()
 	}
 
 	CleanupSwapChain();
+
+	vkDestroySampler(m_device, m_texture_sampler, nullptr);
+	vkDestroyImageView(m_device, m_texture_image_view, nullptr);
 
 	vkDestroyImage(m_device, m_texture_image, nullptr);
 	vkFreeMemory(m_device, m_texture_image_memory, nullptr);
@@ -166,31 +171,33 @@ void Application::CreateSurface()
 	}
 }
 
-void Application::CreateImageView()
+VkImageView Application::CreateImageView(VkImage image, VkFormat format)
+{
+	VkImageViewCreateInfo view_info{};
+	view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	view_info.image = image;
+	view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	view_info.format = format;
+	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	view_info.subresourceRange.layerCount = 1;
+	view_info.subresourceRange.baseArrayLayer = 0;
+	view_info.subresourceRange.levelCount = 1;
+	view_info.subresourceRange.baseMipLevel = 0;
+
+	VkImageView image_view;
+	if (vkCreateImageView(m_device, &view_info, nullptr, &image_view) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create texture_image_view");
+	}
+
+	return image_view;
+}
+
+void Application::CreateSwapChainImageViews()
 {
 	m_swap_chain_image_views.resize(m_swap_chain_images.size());
 
 	for (int i = 0; i < m_swap_chain_images.size(); ++i) {
-		VkImageViewCreateInfo create_info{};
-		create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		create_info.image = m_swap_chain_images[i];
-		create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		create_info.format = m_swap_chain_image_format;
-
-		create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-		create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		create_info.subresourceRange.baseMipLevel = 0;
-		create_info.subresourceRange.levelCount = 1;
-		create_info.subresourceRange.baseArrayLayer = 0;
-		create_info.subresourceRange.layerCount = 1;
-
-		if (vkCreateImageView(m_device, &create_info, nullptr, &m_swap_chain_image_views[i]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create image view");
-		}
+		m_swap_chain_image_views[i] = CreateImageView(m_swap_chain_images[i], m_swap_chain_image_format);
 	}
 }
 
@@ -364,6 +371,40 @@ void Application::CreateTextureImage()
 
 	vkDestroyBuffer(m_device, staging_buffer, nullptr);
 	vkFreeMemory(m_device, staging_buffer_memory, nullptr);
+}
+
+void Application::CreateTextureImageView()
+{
+	m_texture_image_view = CreateImageView(m_texture_image, VK_FORMAT_R8G8B8A8_SRGB);
+}
+
+void Application::CreateTextureSampler()
+{
+	VkSamplerCreateInfo sampler_info{};
+	sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	sampler_info.magFilter = VK_FILTER_LINEAR;
+	sampler_info.minFilter = VK_FILTER_LINEAR;
+	sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	sampler_info.anisotropyEnable = VK_TRUE;
+
+	VkPhysicalDeviceProperties properties{};
+	vkGetPhysicalDeviceProperties(m_physical_device, &properties);
+
+	sampler_info.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+	sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	sampler_info.unnormalizedCoordinates = VK_FALSE;
+	sampler_info.compareEnable = VK_FALSE;
+	sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
+	sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	sampler_info.mipLodBias = 0.0f;
+	sampler_info.minLod = 0.0f;
+	sampler_info.maxLod = 0.0f;
+
+	if (vkCreateSampler(m_device, &sampler_info, nullptr, &m_texture_sampler)) {
+		throw std::runtime_error("failed to create sampler");
+	}
 }
 
 void Application::CreateImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags property, VkImage& image, VkDeviceMemory& image_memory)
@@ -776,19 +817,22 @@ void Application::PickPhysicalDevice()
 		throw std::runtime_error("failed to find suitable GPU");
 }
 
-bool Application::IsDeviceSuitable(VkPhysicalDevice device)
+bool Application::IsDeviceSuitable(VkPhysicalDevice physical_device)
 {
-	QueueFamilyIndices indices = FindQueueFamilies(device);
+	QueueFamilyIndices indices = FindQueueFamilies(physical_device);
 
-	bool extension_supported = CheckDeviceExtensionSupport(device);
+	bool extension_supported = CheckDeviceExtensionSupport(physical_device);
 
 	bool swap_chain_adequate = false;
 	if (extension_supported) {
-		SwapChainSupportDetails swap_chain_support = QuerySwapChainSupport(device);
+		SwapChainSupportDetails swap_chain_support = QuerySwapChainSupport(physical_device);
 		swap_chain_adequate = !swap_chain_support.formats.empty() && !swap_chain_support.present_modes.empty();
 	}
 
-	return indices.IsComplete() && extension_supported && swap_chain_adequate;
+	VkPhysicalDeviceFeatures supported_features;
+	vkGetPhysicalDeviceFeatures(physical_device, &supported_features);
+
+	return indices.IsComplete() && extension_supported && swap_chain_adequate && supported_features.samplerAnisotropy;
 }
 
 bool Application::CheckDeviceExtensionSupport(VkPhysicalDevice physical_device)
@@ -944,7 +988,7 @@ void Application::RecreateSwapChain()
 	CleanupSwapChain();
 
 	CreateSwapChain();
-	CreateImageView();
+	CreateSwapChainImageViews();
 	CreateFramebuffers();
 }
 
@@ -1020,6 +1064,7 @@ void Application::CreateLogicalDevice()
 	}
 		
 	VkPhysicalDeviceFeatures device_features{};
+	device_features.samplerAnisotropy = VK_TRUE;
 
 	VkDeviceCreateInfo create_info{};
 	create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
