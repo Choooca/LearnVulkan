@@ -9,6 +9,9 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
+
 struct QueueFamilyIndices {
 	std::optional<uint32_t> graphics_family;
 	std::optional<uint32_t> present_family;
@@ -39,6 +42,10 @@ struct Vertex {
 		return binding_description;
 	}
 
+	bool operator==(const Vertex& other) const {
+		return pos == other.pos && color == other.color && tex_coords == other.tex_coords;
+	}
+
 	static std::array<VkVertexInputAttributeDescription, 3> GetAttributeDescriptions() {
 		std::array<VkVertexInputAttributeDescription, 3> attribute_descriptions{};
 
@@ -60,6 +67,16 @@ struct Vertex {
 		return attribute_descriptions;
 	}
 };
+
+namespace std {
+	template<> struct hash<Vertex> {
+		size_t operator()(Vertex const& vertex) const {
+			return ((hash<glm::vec3>()(vertex.pos) ^
+				(hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+				(hash<glm::vec2>()(vertex.tex_coords) << 1);
+		}
+	};
+}
 
 struct UniformBufferObject {
 	alignas(16) glm::mat4 model;
