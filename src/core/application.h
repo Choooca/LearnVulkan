@@ -4,6 +4,7 @@
 #include <optional>
 #include <array>
 #include <glm/glm.hpp>
+#include <string>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -76,23 +77,6 @@ public:
 	bool m_framebuffer_resized = false;
 
 private:
-
-	const std::vector<Vertex> vertices = {
-		{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-		{{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-		{{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-		{{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
-
-		{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-		{{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-		{{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-		{{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
-	};
-
-	const std::vector<uint16_t> indices = {
-		0, 1, 2, 2, 3, 0,
-		4, 5, 6, 6, 7, 4
-	};
 
 	void DrawFrame();
 
@@ -182,6 +166,8 @@ private:
 
 	void CreateSyncObjects();
 
+	void LoadModel();
+
 	GLFWwindow* m_window;
 
 	const int MAX_FRAMES_IN_FLIGHT = 2;
@@ -189,8 +175,13 @@ private:
 	const uint32_t WIDTH = 800;
 	const uint32_t HEIGHT = 600;
 
-	uint32_t current_frame = 0;
+	const std::string MODEL_PATH = "viking_room.obj";
+	const std::string TEXTURE_PATH = "viking_room.png";
 
+	uint32_t current_frame = 0;
+	
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
 	VkBuffer m_vertex_buffer;
 	VkDeviceMemory m_vertex_buffer_memory;
 

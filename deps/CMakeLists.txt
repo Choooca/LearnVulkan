@@ -62,9 +62,13 @@ FetchContent_MakeAvailable(stb)
 add_library(stb INTERFACE)
 target_include_directories(stb INTERFACE ${stb_SOURCE_DIR})
 
+message(STATUS "Include tiny obj loader")
+
+include_dependency(tinyobjloader https://github.com/tinyobjloader/tinyobjloader.git release "")
+
 add_library(deps INTERFACE)
 target_include_directories(deps INTERFACE ${vulkanhpp_SOURCE_DIR})
 target_include_directories(deps INTERFACE ${stb_SOURCE_DIR})
 
 find_package(Vulkan REQUIRED)
-target_link_libraries(deps INTERFACE stb Vulkan::Headers Vulkan::Vulkan glfw glm::glm spdlog::spdlog)
+target_link_libraries(deps INTERFACE stb Vulkan::Headers Vulkan::Vulkan glfw glm::glm spdlog::spdlog tinyobjloader)

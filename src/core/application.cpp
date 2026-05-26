@@ -17,6 +17,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
 Application::Application()
 {
 	spdlog::set_level(spdlog::level::debug);
@@ -39,6 +42,7 @@ Application::Application()
 	CreateTextureImage();
 	CreateTextureImageView();
 	CreateTextureSampler();
+	LoadModel();
 	CreateVertexBuffer();
 	CreateIndexBuffer();
 	CreateUniformBuffers();
@@ -350,7 +354,7 @@ void Application::CreateTextureImage()
 {
 	int texture_width, texture_height, texture_channels;
 
-	std::string str_path = std::string(TEXTURES_DIR) + "texture.jpg";
+	std::string str_path = std::string(TEXTURES_DIR) + TEXTURE_PATH;
 	const char* path = str_path.c_str();
 	stbi_uc* pixels = stbi_load(path, &texture_width, &texture_height, &texture_channels, STBI_rgb_alpha);
 	VkDeviceSize image_size = texture_width * texture_height * 4;
@@ -653,7 +657,7 @@ void Application::RecordCommandBuffer(VkCommandBuffer command_buffer, uint32_t i
 	VkBuffer vertex_buffers[] = { m_vertex_buffer };
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-	vkCmdBindIndexBuffer(command_buffer, m_index_buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindIndexBuffer(command_buffer, m_index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
@@ -686,7 +690,7 @@ void Application::UpdateUniformBuffer(uint32_t current_image)
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 
 	UniformBufferObject ubo{};
-	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	ubo.model = glm::rotate(glm::mat4(1.0f), 0.0f, glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), m_swap_chain_extent.width / (float)m_swap_chain_extent.height, 0.1f, 10.0f);
 	ubo.proj[1][1] *= -1;
@@ -718,6 +722,41 @@ void Application::CreateSyncObjects()
 	for (size_t i = 0; i < m_swap_chain_images.size(); i++) {
 		if (vkCreateSemaphore(m_device, &semaphore_info, nullptr, &m_render_finish_semaphores[i]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create synchronization objects for a frame");
+		}
+	}
+}
+
+void Application::LoadModel()
+{
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string err, warn;
+
+	std::string path = MODELS_DIR + MODEL_PATH;
+	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, &warn, path.c_str())) {
+		throw std::runtime_error(err);
+	}
+
+	for (const auto& shape : shapes) {
+		for (const auto& index : shape.mesh.indices) {
+			Vertex vertex{};
+
+			vertex.pos = {
+				attrib.vertices[3 * index.vertex_index + 0],
+				attrib.vertices[3 * index.vertex_index + 1],
+				attrib.vertices[3 * index.vertex_index + 2]
+			};
+
+			vertex.tex_coords = {
+				attrib.texcoords[2 * index.texcoord_index + 0],
+				1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+			};
+
+			vertex.color = { 1.0f ,1.0f, 1.0f };
+
+			vertices.push_back(vertex);
+			indices.push_back(indices.size());
 		}
 	}
 }
